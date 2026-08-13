@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Blackboard Browser MOT v1.5.1</title>
+
+    <style>
+        :root {
+            --uwe-blue: #004c97;
+            --pass: #107c10;
+            --warn: #ffb900;
+            --fail: #d13438;
+            --info: #605e5c;
+            --manual: #8764b8;
+            --bg: #f5f7fa;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            max-width: 1100px;
+            margin: auto;
+            padding: 25px;
+            background: var(--bg);
+            color: #333;
+        }
+
+        .header,
+        .card,
+        .summary-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .08);
+        }
+
+        .header {
+            padding: 25px;
+        }
+
+        .card {
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        h1 {
+            margin: 0;
+            color: var(--uwe-blue);
+        }
+
+        .subtitle {
+            color: #666;
+            margin-top: 8px;
+        }
+
+        button {
+            background: var(--uwe-blue);
+            color: white;
+            border: none;
+            padding: 12px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 15px;
+        }
+
+        button:hover {
+            opacity: .9;
+        }
+
+        button:disabled {
+            opacity: .6;
+            cursor: wait;
+        }
+
+        .grid,
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .test {
+            background: white;
+            border-left: 6px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, .05);
+        }
+
+        .pass { border-left-color: var(--pass); }
+        .warn { border-left-color: var(--warn); }
+        .fail { border-left-color: var(--fail); }
+        .info { border-left-color: var(--info); }
+        .manual { border-left-color: var(--manual); }
+
+        .result {
+            font-weight: 700;
+            margin-top: 5px;
+        }
+
+        .summary-card {
+            padding: 20px;
+        }
+
+        .summary-card h2 {
+            margin-top: 0;
+        }
+
+        .summary-value {
+            font-size: 30px;
+            font-weight: 700;
+            margin: 8px 0;
+        }
+
+        .summary-detail,
+        .note {
+            color: #555;
+            line-height: 1.5;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 290px;
+            margin-top: 15px;
+            padding: 10px;
+            font-family: Consolas, monospace;
+            resize: vertical;
+        }
+
+        .footer {
+            margin-top: 20px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .runtime-warning {
+            background: #fff4ce;
+            border-left: 6px solid var(--warn);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 700px) {
+            .grid,
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            body {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>🎓 Blackboard Browser MOT v1.5.1</h1>
+
+        <p class="subtitle">
+            A guided Blackboard browser diagnostic. The MOT tests browser behaviours it can measure,
+            identifies likely client-side issues, links to the relevant browser guidance, and provides
+            a diagnostic report for escalation if the problem remains.
+        </p>
+
+        <p>
+            Version 1.5 keeps the genuine cross-site cookie test and restores automatic pop-up behaviour
+            as a scored browser check. Blackboard's own site-specific pop-up permission remains a separate
+            manual check because a local diagnostic cannot read another site's Edge permission directly.
+        </p>
+
+        <label for="issueDescription"><strong>Briefly describe the Blackboard problem (optional)</strong></label><br>
+        <input id="issueDescription" type="text"
+               placeholder="Example: Blackboard menu item will not open with a normal left click"
+               style="width:100%;padding:10px 12px;border:1px solid #bbb;border-radius:7px;font:inherit;margin:8px 0 14px;">
+
+        <button id="runButton" type="button" onclick="runDiagnostic()">
+            Run Diagnostic Checks
+        </button>
+
+        <p id="browserSummary" class="note" style="font-size:13px;margin-bottom:0;"></p>
+    </div>
+
+    <div id="runtimeWarning"></div>
+
+    <div id="results" class="grid"></div>
+
+    <div class="summary-grid">
+        <div class="summary-card">
+            <h2>Measurable Browser Checks</h2>
+            <div id="score" class="summary-value">Not yet tested</div>
+            <div id="scoreDetail" class="summary-detail">
+                Third-party cookie access and automatic pop-up behaviour are included in this score.
+                Blackboard site-specific permissions and cache state remain manual checks.
+            </div>
+        </div>
+
+        <div class="summary-card">
+            <h2>Blackboard Compatibility</h2>
+            <div id="compatibility" class="summary-value">Not yet assessed</div>
+            <div id="compatibilityDetail" class="summary-detail">
+                Run the diagnostic to receive a recommended next action.
+            </div>
+        </div>
+    </div>
+
+    <div id="nextAction" class="card">
+        <h2>Recommended next action</h2>
+        <p class="note">Run the diagnostic first. This recommendation changes according to the results.</p>
+    </div>
+
+    <div class="card">
+        <h2>Manual checks the MOT cannot complete for you</h2>
+
+        <p class="note">
+            <strong>Cache / Blackboard site data:</strong> the MOT cannot reliably determine whether Blackboard
+            is using stale cached files, cookies, site data or authentication state, and it cannot clear another
+            website's stored data. If the issue remains after resolving any detected failure, clear browser cache
+            and cookies/site data manually, close and reopen the browser, and test Blackboard again.
+        </p>
+
+        <div id="manualGuidance"></div>
+    </div>
+
+    <div class="card">
+        <h2>Still not working?</h2>
+        <p>
+            If you have followed the recommended guidance, cleared browser cache/site data and the Blackboard
+            issue still occurs, copy the diagnostic report and contact <strong>itonline@uwe.ac.uk</strong>.
+        </p>
+        <button type="button" onclick="copyReport()">Copy Diagnostic Report</button>
+        <button type="button" onclick="copyAndEmail()" style="margin-left:8px;">Copy Report &amp; Email IT Services</button>
+        <p class="note" style="font-size:13px;">
+            The email button opens a new message with the issue summary and escalation wording.
+            The full diagnostic is copied to your clipboard so you can paste it into the email.
+        </p>
+    </div>
+
+    <div class="card">
+        <h2>Diagnostic Report</h2>
+
+        <textarea id="report" readonly></textarea>
+
+        <button type="button" onclick="copyReport()">Copy Report</button>
+
+        <div class="footer">
+            A PASS means the tested behaviour worked in the MOT's controlled test context. It does not
+            guarantee that every Blackboard workflow will succeed.
+        </div>
+    </div>
+
+    <script>
+        const THIRD_PARTY_HELPER_ORIGIN = "https://bbmot-cookie-helper.onrender.com";
+        const REQUIRED_MAIN_HOST = "blackboard-browser-mot.onrender.com";
+        let reportLines = [];
+        let currentBrowser = null;
+
+        const GUIDANCE = {
+            edge: {
+                name: "Microsoft Edge",
+                cookies: "https://support.microsoft.com/en-us/microsoft-edge/view-cookies-in-microsoft-edge-a7d95376-f2cd-8e4a-25dc-1de753474879",
+                cache: "https://support.microsoft.com/en-us/edge/view-and-delete-browser-history-in-microsoft-edge",
+                popups: "https://support.microsoft.com/en-us/microsoft-edge/block-pop-ups-in-microsoft-edge-1d8ba4f8-f385-9a0b-e944-aa47339b6bb5",
+                update: "https://support.microsoft.com/en-US/edge/microsoft-edge-update-settings",
+                privateText: "Open an InPrivate window with Ctrl+Shift+N.",
+                privateUrl: "https://support.microsoft.com/en-us/edge/browse-inprivate-in-microsoft-edge"
+            },
+            chrome: {
+                name: "Google Chrome",
+                cookies: "https://support.google.com/chrome/answer/95647?hl=en-GB",
+                cache: "https://support.google.com/chrome/answer/2392709?hl=en-GB&co=GENIE.Platform%3DDesktop",
+                popups: "https://support.google.com/chrome/answer/95472?hl=en-GB&co=GENIE.Platform%3DDesktop",
+                update: "https://support.google.com/chrome/answer/95414/update-google-chrome-computer?co=GENIE.Platform%3DDesktop&hl=en-GB",
+                privateText: "Open an Incognito window with Ctrl+Shift+N.",
+                privateUrl: "https://support.google.com/chrome/answer/95464?hl=en-GB"
+            },
+            firefox: {
+                name: "Mozilla Firefox",
+                cookies: "https://support.mozilla.org/en-US/kb/third-party-cookies-firefox-tracking-protection",
+                cache: "https://support.mozilla.org/en-US/kb/clear-cookies-and-site-data-firefox",
+                popups: "https://support.mozilla.org/en-US/kb/pop-blocker-settings-exceptions-troubleshooting",
+                update: "https://support.mozilla.org/en-US/kb/update-firefox-latest-release",
+                privateText: "Open a Private Browsing window with Ctrl+Shift+P.",
+                privateUrl: "https://support.mozilla.org/en-US/kb/private-browsing-use-firefox-without-history"
+            },
+            safari: {
+                name: "Safari",
+                cookies: "https://support.apple.com/en-ie/guide/safari/sfri40732/mac",
+                cache: "https://support.apple.com/guide/safari/manage-cookies-sfri11471/mac",
+                popups: "https://support.apple.com/en-gb/guide/safari/sfri40696/mac",
+                update: "https://support.apple.com/en-gb/safari",
+                privateText: "Open a Private Window with Command+Shift+N.",
+                privateUrl: "https://support.apple.com/en-gb/guide/safari/ibrw1069/mac"
+            },
+            other: {
+                name: "this browser",
+                cookies: "https://www.whatismybrowser.com/guides/how-to-enable-cookies/",
+                cache: "https://www.whatismybrowser.com/guides/clear-cache-history-cookies/",
+                popups: "https://www.whatismybrowser.com/",
+                update: "https://www.whatismybrowser.com/guides/how-to-update-your-browser/",
+                privateText: "Try the browser's private browsing mode.",
+                privateUrl: "https://www.whatismybrowser.com/"
+            }
+        };
+
+        function detectBrowser() {
+            const ua = navigator.userAgent;
+            if (ua.includes("Edg/")) return {key:"edge", name:"Microsoft Edge", ua};
+            if (ua.includes("Firefox/")) return {key:"firefox", name:"Mozilla Firefox", ua};
+            if (ua.includes("Chrome/") && !ua.includes("Edg/")) return {key:"chrome", name:"Google Chrome", ua};
+            if (ua.includes("Safari/") && !ua.includes("Chrome/")) return {key:"safari", name:"Safari", ua};
+            return {key:"other", name:"Unrecognised browser", ua};
+        }
+
+        function guide() {
+            return GUIDANCE[currentBrowser?.key || "other"];
+        }
+
+        function addResult(name,status,detail) {
+            const container = document.getElementById("results");
+            const css = status.toLowerCase();
+            const test = document.createElement("div");
+            test.className = `test ${css}`;
+            test.innerHTML = `<strong></strong><div class="result"></div><div class="detail"></div>`;
+            test.querySelector("strong").textContent = name;
+            test.querySelector(".result").textContent = status;
+            test.querySelector(".detail").textContent = detail;
+            container.appendChild(test);
+            reportLines.push(`${name}: ${status} - ${detail}`);
+        }
+
+        function showRuntimeWarning(message) {
+            const target=document.getElementById("runtimeWarning");
+            target.innerHTML="";
+            if (!message) return;
+            const box=document.createElement("div");
+            box.className="runtime-warning";
+            box.textContent=message;
+            target.appendChild(box);
+        }
+
+        function guidanceLink(title,text,url) {
+            const box=document.createElement("div");
+            box.style.cssText="border:1px solid #d9dee5;border-radius:8px;padding:14px;margin-top:12px;";
+            const strong=document.createElement("strong");
+            strong.textContent=title;
+            const p=document.createElement("p");
+            p.className="note";
+            p.textContent=text;
+            const a=document.createElement("a");
+            a.href=url;
+            a.target="_blank";
+            a.rel="noopener noreferrer";
+            a.textContent="Open guidance";
+            a.style.cssText="color:#004c97;font-weight:600;";
+            box.append(strong,p,a);
+            return box;
+        }
+
+        function renderManualGuidance() {
+            const g=guide();
+            const c=document.getElementById("manualGuidance");
+            c.innerHTML="";
+            c.append(
+                guidanceLink("Clear cache, cookies and site data",
+                    `If the problem remains, perform this manual step in ${g.name} even when the measurable MOT checks pass.`,
+                    g.cache),
+                guidanceLink("Check Blackboard site-specific pop-up permission",
+                    "The automatic pop-up test checks general browser behaviour only. Confirm that blackboard.uwe.ac.uk is explicitly allowed if the affected workflow opens another window or tab.",
+                    g.popups),
+                guidanceLink("Check browser updates",
+                    `Confirm that ${g.name} is fully updated. The MOT does not maintain a live browser-version database.`,
+                    g.update),
+                guidanceLink("Try private browsing",
+                    `${g.privateText} If Blackboard works there, that is useful evidence of a profile, cache, cookie or extension-related difference.`,
+                    g.privateUrl)
+            );
+        }
+
+        function firstPartyCookieTest() {
+            const name=`bbmot_first_${Date.now()}`;
+            try {
+                document.cookie=`${name}=1; SameSite=Lax`;
+                const ok=document.cookie.includes(`${name}=1`);
+                document.cookie=`${name}=; Max-Age=0; SameSite=Lax`;
+                return ok;
+            } catch { return false; }
+        }
+
+        function localStorageTest() {
+            try { localStorage.setItem("bbmot_test","1"); localStorage.removeItem("bbmot_test"); return true; }
+            catch { return false; }
+        }
+
+        function sessionStorageTest() {
+            try { sessionStorage.setItem("bbmot_test","1"); sessionStorage.removeItem("bbmot_test"); return true; }
+            catch { return false; }
+        }
+
+        function thirdPartyCookieTest() {
+            return new Promise(resolve => {
+                if (location.hostname !== REQUIRED_MAIN_HOST) {
+                    resolve({status:"WARN",scoreable:false,passed:false,
+                        detail:"True cross-site test unavailable because this page is not running from the expected Blackboard Browser MOT host."});
+                    return;
+                }
+
+                const nonce=`${Date.now()}_${Math.random().toString(36).slice(2)}`;
+                const iframe=document.createElement("iframe");
+                Object.assign(iframe.style,{width:"1px",height:"1px",position:"absolute",left:"-9999px",top:"-9999px"});
+                iframe.setAttribute("aria-hidden","true");
+                iframe.src=`${THIRD_PARTY_HELPER_ORIGIN}/cookie-test?nonce=${encodeURIComponent(nonce)}`;
+                let done=false;
+
+                const cleanup=()=> {
+                    window.removeEventListener("message",onMessage);
+                    if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+                };
+                const finish=result=> {
+                    if (done) return;
+                    done=true; cleanup(); resolve(result);
+                };
+                const onMessage=event=> {
+                    if (event.origin!==THIRD_PARTY_HELPER_ORIGIN) return;
+                    if (!event.data || event.data.type!=="bbmot-third-party-cookie" || event.data.nonce!==nonce) return;
+
+                    if (event.data.cookieVisible===true) {
+                        finish({status:"PASS",scoreable:true,passed:true,
+                            detail:"A SameSite=None; Secure test cookie was successfully set and read inside the cross-site test iframe"});
+                    } else {
+                        const storage=event.data.storageAccess===false
+                            ? " Storage Access API also reports no unpartitioned storage access." : "";
+                        finish({status:"FAIL",scoreable:true,passed:false,
+                            detail:"Cross-site cookie access is blocked in this test context."+storage+
+                                   " Blackboard may be affected unless the required sites are allowed as exceptions."});
+                    }
+                };
+
+                window.addEventListener("message",onMessage);
+                document.body.appendChild(iframe);
+                setTimeout(()=>finish({status:"WARN",scoreable:false,passed:false,
+                    detail:"The cross-site cookie helper did not respond within 70 seconds. The free hosting service may still be waking up; wait a moment and run the diagnostic again."}),70000);
+            });
+        }
+
+        function waitForUserActivationToExpire(maxWaitMs=6500) {
+            return new Promise(resolve => {
+                const started=Date.now();
+
+                const check=()=> {
+                    if (!navigator.userActivation || !navigator.userActivation.isActive) {
+                        resolve(true);
+                        return;
+                    }
+
+                    if (Date.now()-started >= maxWaitMs) {
+                        resolve(false);
+                        return;
+                    }
+
+                    setTimeout(check,100);
+                };
+
+                check();
+            });
+        }
+
+        async function automaticPopupTest() {
+            const activationExpired=await waitForUserActivationToExpire();
+
+            if (!activationExpired) {
+                return {
+                    status:"WARN",
+                    scoreable:false,
+                    passed:false,
+                    detail:"Automatic pop-up behaviour could not be verified because transient user activation remained active longer than expected."
+                };
+            }
+
+            let popup=null;
+
+            try {
+                popup=window.open(
+                    "about:blank",
+                    "bbmot_popup_test",
+                    "popup,width=220,height=140"
+                );
+            } catch {
+                popup=null;
+            }
+
+            if (!popup) {
+                return {
+                    status:"FAIL",
+                    scoreable:true,
+                    passed:false,
+                    detail:"The browser blocked an automatic pop-up after user activation expired. This suggests general pop-up blocking is active. Blackboard may still be allowed through a site-specific exception."
+                };
+            }
+
+            try {
+                popup.close();
+            } catch {}
+
+            return {
+                status:"PASS",
+                scoreable:true,
+                passed:true,
+                detail:"The browser allowed an automatic pop-up after user activation expired. This does not prove Blackboard's site-specific permission, but general automatic pop-up blocking was not observed in this test."
+            };
+        }
+
+        function blackboardIframeTest() {
+            return new Promise(resolve => {
+                const iframe=document.createElement("iframe");
+                Object.assign(iframe.style,{width:"1px",height:"1px",position:"absolute",left:"-9999px",top:"-9999px"});
+                iframe.setAttribute("aria-hidden","true");
+                iframe.src="https://blackboard.uwe.ac.uk";
+                let done=false;
+                const finish=result=> {
+                    if (done) return;
+                    done=true;
+                    if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+                    resolve(result);
+                };
+                iframe.onload=()=>finish({status:"INFO",detail:"Blackboard iframe reached the browser load stage; this does not prove successful rendering or authentication"});
+                iframe.onerror=()=>finish({status:"WARN",detail:"Blackboard iframe request could not be verified"});
+                document.body.appendChild(iframe);
+                setTimeout(()=>finish({status:"WARN",detail:"Blackboard iframe did not reach the browser load stage within 5 seconds"}),5000);
+            });
+        }
+
+        function setNextActions(actions) {
+            const card=document.getElementById("nextAction");
+            card.innerHTML="";
+
+            const h2=document.createElement("h2");
+            h2.textContent="Recommended next action";
+            card.appendChild(h2);
+
+            if (actions.length>1) {
+                const intro=document.createElement("p");
+                intro.className="note";
+                intro.textContent=`${actions.length} browser-side issues were detected. Work through each recommendation below, ideally changing and retesting one setting at a time so you can see which change affects Blackboard behaviour.`;
+                card.appendChild(intro);
+            }
+
+            actions.forEach((action,index)=>{
+                const box=document.createElement("div");
+                box.className="guidance-item";
+                box.style.marginTop="12px";
+
+                const heading=document.createElement("strong");
+                heading.textContent=actions.length>1
+                    ? `${index+1}. ${action.title}`
+                    : action.title;
+
+                const detail=document.createElement("div");
+                detail.className="detail";
+                detail.textContent=action.text;
+
+                box.appendChild(heading);
+                box.appendChild(detail);
+
+                if (action.links && action.links.length) {
+                    const row=document.createElement("div");
+                    row.style.marginTop="12px";
+
+                    action.links.forEach(item=>{
+                        const a=document.createElement("a");
+                        a.href=item.url;
+                        a.target="_blank";
+                        a.rel="noopener noreferrer";
+                        a.textContent=item.text;
+                        a.style.cssText="display:inline-block;background:#004c97;color:#fff;text-decoration:none;padding:10px 14px;border-radius:8px;margin:0 8px 8px 0;";
+                        row.appendChild(a);
+                    });
+
+                    box.appendChild(row);
+                }
+
+                card.appendChild(box);
+            });
+
+            const retryRow=document.createElement("div");
+            retryRow.style.marginTop="12px";
+
+            const retry=document.createElement("button");
+            retry.type="button";
+            retry.textContent="Run Diagnostic Again";
+            retry.onclick=runDiagnostic;
+
+            retryRow.appendChild(retry);
+            card.appendChild(retryRow);
+        }
+
+        function setNextAction(title,text,links=[]) {
+            setNextActions([{title,text,links}]);
+        }
+
+        async function runDiagnostic() {
+            reportLines=[];
+            const results=document.getElementById("results");
+            const score=document.getElementById("score");
+            const scoreDetail=document.getElementById("scoreDetail");
+            const compatibility=document.getElementById("compatibility");
+            const compatibilityDetail=document.getElementById("compatibilityDetail");
+            const report=document.getElementById("report");
+            const runButton=document.getElementById("runButton");
+            const issue=document.getElementById("issueDescription").value.trim();
+
+            results.innerHTML=""; report.value=""; showRuntimeWarning("");
+            currentBrowser=detectBrowser();
+            const g=guide();
+            document.getElementById("browserSummary").textContent=`Detected browser: ${currentBrowser.name}`;
+            renderManualGuidance();
+
+            score.textContent="Running...";
+            scoreDetail.textContent="Testing measurable browser behaviours.";
+            compatibility.textContent="Assessing...";
+            compatibilityDetail.textContent="Preparing targeted guidance.";
+            runButton.disabled=true; runButton.textContent="Running Checks...";
+
+            let passed=0,total=0;
+            const failures=[];
+            const scoreResult=(name,ok)=>{ total++; if(ok) passed++; else failures.push(name); };
+
+            try {
+                if (issue) { reportLines.push(`Reported issue: ${issue}`,""); }
+
+                addResult("Browser Detection","INFO",`${currentBrowser.name} - ${currentBrowser.ua}`);
+
+                if (location.hostname!==REQUIRED_MAIN_HOST) {
+                    showRuntimeWarning("The MOT is not running from its expected host, so the genuine cross-site cookie test is unavailable.");
+                }
+
+                const first=firstPartyCookieTest();
+                addResult("First-Party Cookies",first?"PASS":"FAIL",first?"First-party cookies appear functional":"First-party cookies appear blocked");
+                scoreResult("First-party cookies",first);
+
+                const ls=localStorageTest();
+                addResult("Local Storage",ls?"PASS":"FAIL",ls?"Local storage working":"Local storage unavailable");
+                scoreResult("Local storage",ls);
+
+                const ss=sessionStorageTest();
+                addResult("Session Storage",ss?"PASS":"FAIL",ss?"Session storage working":"Session storage unavailable");
+                scoreResult("Session storage",ss);
+
+                const online=navigator.onLine;
+                addResult("Internet Connectivity",online?"PASS":"FAIL",online?"Browser reports online":"Browser reports offline");
+                scoreResult("Internet connectivity",online);
+
+                const third=await thirdPartyCookieTest();
+                addResult("Third-Party Cookie Access",third.status,third.detail);
+                if (third.scoreable) scoreResult("Third-party cookie access",third.passed);
+
+                const popup=await automaticPopupTest();
+                addResult("Automatic Pop-Up Behaviour",popup.status,popup.detail);
+                if (popup.scoreable) scoreResult("Automatic pop-up behaviour",popup.passed);
+
+                addResult("Blackboard Site Pop-Up Permission","MANUAL","The MOT cannot read Blackboard's individual site permission. If the affected workflow opens another window or tab, confirm that blackboard.uwe.ac.uk is allowed under the browser's Pop-ups and redirects settings.");
+
+                addResult("Cache / Blackboard Site Data","MANUAL","The MOT cannot detect whether cached Blackboard files, cookies, site data or authentication state are stale. Clear them manually if the issue remains.");
+                addResult("Browser Update Status","MANUAL","The browser was identified, but the MOT does not maintain a live version database. Confirm that the browser and device are fully updated.");
+                addResult("Private Browsing Test","MANUAL",`${g.privateText} Use this as a comparison if normal browsing still fails.`);
+
+                const iframe=await blackboardIframeTest();
+                addResult("Blackboard Embedded Content",iframe.status,iframe.detail);
+
+                addResult("Storage Access API","INFO",
+                    "hasStorageAccess" in document ? "Storage Access API is supported by this browser" : "Storage Access API is not exposed in this browser context");
+
+                const pct=total?Math.round((passed/total)*100):0;
+                const label=passed===total?"🟢 PASS":pct>=70?"🟡 REVIEW":"🔴 ACTION REQUIRED";
+                score.textContent=`${pct}% — ${label}`;
+                scoreDetail.textContent=`${passed} of ${total} measurable checks passed. Third-party cookie access and automatic pop-up behaviour are scored. Blackboard site permission, cache, update and private-browsing checks remain manual.`;
+
+                const actions=[];
+
+                if (third.scoreable && !third.passed) {
+                    actions.push({
+                        title:"Review third-party cookie access",
+                        text:`Cross-site cookie access failed. Follow the ${g.name} cookie guidance, allow the required Blackboard-related sites as appropriate, then run the MOT again and retest the original Blackboard action.`,
+                        links:[
+                            {text:`${g.name} cookie guidance`,url:g.cookies}
+                        ]
+                    });
+                }
+
+                if (popup.scoreable && !popup.passed) {
+                    actions.push({
+                        title:"Review pop-up settings and Blackboard permission",
+                        text:`The browser blocked an automatic pop-up. Follow the ${g.name} pop-up guidance, check whether blackboard.uwe.ac.uk is allowed, then retry the original Blackboard action and note whether the behaviour changes.`,
+                        links:[
+                            {text:`${g.name} pop-up guidance`,url:g.popups}
+                        ]
+                    });
+                }
+
+                if (!first) {
+                    actions.push({
+                        title:"Enable browser cookies",
+                        text:`First-party cookie storage failed. Follow the ${g.name} cookie guidance and then rerun the diagnostic.`,
+                        links:[
+                            {text:`${g.name} cookie guidance`,url:g.cookies}
+                        ]
+                    });
+                }
+
+                if (!ls || !ss) {
+                    actions.push({
+                        title:"Clear browser/site data and retest",
+                        text:`Browser storage did not behave normally. Follow the ${g.name} cache/site-data guidance, restart the browser and run the MOT again.`,
+                        links:[
+                            {text:`${g.name} cache & site-data guidance`,url:g.cache}
+                        ]
+                    });
+                }
+
+                if (!online) {
+                    actions.push({
+                        title:"Restore network connectivity",
+                        text:"Confirm the device has a working network connection, then rerun the MOT before continuing with Blackboard troubleshooting.",
+                        links:[]
+                    });
+                }
+
+                if (actions.length) {
+                    compatibility.textContent=actions.length===1
+                        ? "🟡 Likely browser-side issue found"
+                        : `🟡 ${actions.length} browser-side issues found`;
+
+                    compatibilityDetail.textContent=
+                        `Failed measurable checks: ${failures.join(", ")}. Follow each relevant recommendation below and retest after each change where practical.`;
+
+                    setNextActions(actions);
+                } else {
+                    compatibility.textContent="🟢 No measurable browser failure detected";
+                    compatibilityDetail.textContent="The measurable MOT checks passed, including cross-site cookie access and automatic pop-up behaviour. Cache/site data, Blackboard's site-specific pop-up permission and update status still require manual verification.";
+
+                    setNextActions([
+                        {
+                            title:"Clear Blackboard cache/site data and retest",
+                            text:`No measurable failure was found. Because stale cache, cookies or authentication state cannot be detected by the MOT, follow the ${g.name} cache/site-data guidance as the next step, close and reopen the browser, then test Blackboard again.`,
+                            links:[
+                                {text:`${g.name} cache & site-data guidance`,url:g.cache},
+                                {text:`${g.name} pop-up guidance`,url:g.popups}
+                            ]
+                        }
+                    ]);
+                }
+
+                reportLines.push("","MEASURABLE BROWSER CHECKS",`${pct}% - ${label.replace(/[🟢🟡🔴]\s*/g,"")}`,`${passed} of ${total} measurable checks passed.`);
+                if (failures.length) {
+                    reportLines.push(`Failed measurable checks: ${failures.join(", ")}`);
+                    reportLines.push("","RECOMMENDED ACTIONS");
+
+                    actions.forEach((action,index)=>{
+                        reportLines.push(`${index+1}. ${action.title}`);
+                        reportLines.push(`   ${action.text}`);
+                    });
+                }
+                reportLines.push("","BLACKBOARD COMPATIBILITY",
+                    compatibility.textContent.replace(/[🟢🟡🔴]\s*/g,""),compatibilityDetail.textContent,
+                    "","MANUAL FOLLOW-UP",
+                    "If the issue persists after resolving any measurable failure, clear browser cache/cookies/site data and retest Blackboard.",
+                    "Confirm Blackboard's site-specific pop-up permission, browser/device updates and compare behaviour in private browsing if required.",
+                    "",`Generated: ${new Date().toLocaleString()}`,
+                    "","Service Desk Observation:",
+                    "Automatic pop-up behaviour is scored in v1.5.1, but Blackboard's own site-specific pop-up permission remains a manual check. The MOT also cannot reliably detect stale Blackboard cache/site data or clear another website's stored data.",
+                    "If the recommended guidance and manual cache/site-data step do not resolve the problem, paste this diagnostic when contacting IT Services.");
+                report.value=reportLines.join("\n");
+            } catch(error) {
+                console.error(error);
+                addResult("Diagnostic Runtime","FAIL",`Unexpected error: ${error.message}`);
+                score.textContent="Unable to complete";
+                compatibility.textContent="Unable to assess";
+                reportLines.push("",`Unexpected diagnostic error: ${error.message}`);
+                report.value=reportLines.join("\n");
+            } finally {
+                runButton.disabled=false; runButton.textContent="Run Diagnostic Checks";
+            }
+        }
+
+        async function copyReport(silent=false) {
+            const text=document.getElementById("report").value;
+            if (!text) { if(!silent) alert("Run the diagnostic first."); return false; }
+            try {
+                await navigator.clipboard.writeText(text);
+                if(!silent) alert("Diagnostic report copied to clipboard.");
+                return true;
+            } catch {
+                const report=document.getElementById("report");
+                report.focus(); report.select();
+                try {
+                    document.execCommand("copy");
+                    if(!silent) alert("Diagnostic report copied to clipboard.");
+                    return true;
+                } catch {
+                    if(!silent) alert("Unable to copy automatically. Select the report and copy it manually.");
+                    return false;
+                }
+            }
+        }
+
+        async function copyAndEmail() {
+            const copied=await copyReport(true);
+            if (!copied) { alert("Run the diagnostic first, then try again."); return; }
+
+            const issue=document.getElementById("issueDescription").value.trim() || "[Please describe the Blackboard problem here]";
+            const subject="Blackboard Browser Issue - MOT Diagnostics";
+            const body=`Hello IT Services,
+
+I am experiencing the following Blackboard issue:
+
+${issue}
+
+I have run Blackboard Browser MOT v1.5.1 and followed the recommended browser guidance. I have also cleared the browser cache/site data and the issue is still occurring.
+
+The diagnostic report has been copied to my clipboard. I will paste it below:
+
+--- Paste Blackboard Browser MOT diagnostic here ---
+
+
+Thank you.`;
+
+            window.location.href=`mailto:itonline@uwe.ac.uk?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        }
+
+        currentBrowser=detectBrowser();
+        document.getElementById("browserSummary").textContent=`Detected browser: ${currentBrowser.name}`;
+        renderManualGuidance();
+    </script>
+
+</body>
+</html>
