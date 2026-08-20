@@ -10,7 +10,7 @@ import threading
 
 app = Flask(__name__)
 
-MAIN_ORIGIN = "https://blackboard-browser-mot.onrender.com"
+MAIN_ORIGIN = "https://www.cems.uwe.ac.uk"
 
 # ---------------------------------------------------------------------------
 # Lightweight, privacy-conscious usage stats
@@ -207,7 +207,7 @@ def cookie_test():
     response.headers["Content-Security-Policy"] = (
         "default-src 'none'; "
         "script-src 'unsafe-inline'; "
-        "frame-ancestors https://blackboard-browser-mot.onrender.com"
+        "frame-ancestors https://www.cems.uwe.ac.uk"
     )
 
     return response
